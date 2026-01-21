@@ -8,6 +8,7 @@ import { MapsModule } from './modules/maps/maps.module';
 import { SearchModule } from './modules/search/search.module';
 import { DetectionModule } from './modules/detection/detection.module';
 import { FeedbackModule } from './modules/feedback/feedback.module';
+import { DistrictsModule } from './modules/districts/districts.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { FeedbackModule } from './modules/feedback/feedback.module';
     SearchModule,
     DetectionModule,
     FeedbackModule,
+    DistrictsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

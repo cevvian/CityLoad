@@ -7,6 +7,7 @@ import { firstValueFrom } from 'rxjs';
 import { GridCell } from '../../database/entities/grid-cell.entity';
 import { AiBuilding } from '../../database/entities/ai-building.entity';
 import { AiLandUsage } from '../../database/entities/ai-land-usage.entity';
+import { GridCellStatus } from '../../database/entities/enums/grid-cell-status.enum';
 import { GetGridCellsDto, DetectRequestDto } from './dto';
 
 @Injectable()
@@ -110,7 +111,7 @@ export class MapsService {
             }
 
             // 6. Update grid cell status
-            await this.gridCellRepo.update(grid_cell_id, { status: 'PROCESSED' });
+            await this.gridCellRepo.update(grid_cell_id, { status: GridCellStatus.PROCESSED });
 
             return {
                 status: 'success',

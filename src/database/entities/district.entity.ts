@@ -1,13 +1,26 @@
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+import type { Geometry } from 'geojson';
+import { Entity, PrimaryGeneratedColumn, Column, Index, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
 @Entity('districts')
 export class District {
-    @PrimaryGeneratedColumn()
+    @PrimaryGeneratedColumn('increment')
     id: number;
 
-    @Column({ type: 'text', nullable: true })
+    @Column({ type: 'text' })
     name: string;
 
-    @Column({ type: 'geometry', spatialFeatureType: 'Polygon', srid: 4326, nullable: true })
-    geometry: string;  // Match existing column name from backup
+    @Index({ spatial: true })
+    @Column({
+        type: 'geometry',
+        spatialFeatureType: 'Polygon',
+        srid: 4326,
+        select: false
+    })
+    geom: Geometry;
+
+    @CreateDateColumn()
+    created_at: Date;
+
+    @UpdateDateColumn()
+    updated_at: Date;
 }
