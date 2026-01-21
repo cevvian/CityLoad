@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgis/postgis:17-3.4
+    container_name: cityload-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-123456}
+      POSTGRES_DB: cityload
+    ports:
+      - "${DB_PORT:-5433}:5432"
+    volumes:
+      - cityload_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d cityload"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  cityload_data:

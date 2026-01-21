@@ -1,98 +1,176 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# CityLoad API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Backend API cho hệ thống phát hiện đối tượng và phân vùng từ ảnh vệ tinh.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Tech Stack
 
-## Description
+- **Framework**: NestJS + TypeScript
+- **Database**: PostgreSQL + PostGIS
+- **ORM**: TypeORM
+- **Docs**: Swagger
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+---
 
-## Project setup
+## Yêu cầu
+
+- Node.js >= 18
+- Docker & Docker Compose
+- (Optional) PostgreSQL client để debug
+
+---
+
+## Cài đặt
+
+### 1. Clone repository
 
 ```bash
-$ npm install
+git clone https://github.com/cevvian/CityLoad.git
+cd CityLoad
 ```
 
-## Compile and run the project
+### 2. Cài dependencies
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npm install
 ```
 
-## Run tests
+### 3. Tạo file `.env`
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+cp .env.example .env
 ```
 
-## Deployment
+Hoặc tạo file `.env` với nội dung:
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+```env
+DB_HOST=localhost
+DB_PORT=5433
+DB_USERNAME=postgres
+DB_PASSWORD=123456
+DB_DATABASE=cityload
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+AI_SERVICE_URL=http://localhost:8000
+```
+
+### 4. Khởi động Database (Docker)
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+docker-compose up -d
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+Lệnh này sẽ:
+- Tạo PostgreSQL 17 với PostGIS
+- Tự động enable PostGIS extension
+- Lưu data vào Docker volume
 
-## Resources
+### 5. Restore dữ liệu (nếu có file backup)
 
-Check out a few resources that may come in handy when working with NestJS:
+```bash
+# Copy file backup vào container
+docker cp cityload_gis.backup cityload-db:/tmp/
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+# Restore
+docker exec -it cityload-db pg_restore -U postgres -d cityload --no-owner --no-acl /tmp/cityload_gis.backup
+```
 
-## Support
+### 6. Chạy migrations
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+```bash
+npm run migration:run
+```
 
-## Stay in touch
+### 7. Khởi động server
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+```bash
+# Development
+npm run start:dev
+
+# Production
+npm run build
+npm run start:prod
+```
+
+---
+
+## API Documentation
+
+Truy cập Swagger UI: http://localhost:3000/api
+
+### Endpoints chính
+
+| Method | Endpoint | Mô tả |
+|--------|----------|-------|
+| GET | `/maps/grid-cells` | Lấy grid cells theo bounding box |
+| POST | `/maps/detect` | Gọi AI detection cho grid cell |
+
+---
+
+## Cấu trúc Project
+
+```
+src/
+├── config/                 # Cấu hình DB
+├── database/
+│   ├── entities/           # TypeORM entities
+│   ├── migrations/         # DB migrations
+│   └── data-source.ts      # TypeORM data source
+├── modules/
+│   ├── maps/               # Map APIs
+│   ├── search/             # Search APIs
+│   ├── detection/          # AI integration
+│   └── feedback/           # User feedback
+└── main.ts                 # Entry point
+```
+
+---
+
+## Scripts
+
+| Script | Mô tả |
+|--------|-------|
+| `npm run start:dev` | Chạy development server |
+| `npm run build` | Build production |
+| `npm run migration:generate` | Tạo migration mới |
+| `npm run migration:run` | Chạy migrations |
+
+---
+
+## Database
+
+### Kết nối PostgreSQL
+
+```bash
+docker exec -it cityload-db psql -U postgres -d cityload
+```
+
+### Xem tables
+
+```sql
+\dt                    -- Danh sách tables
+\d grid_cells          -- Cấu trúc table
+```
+
+---
+
+## Troubleshooting
+
+### Lỗi kết nối database
+
+1. Kiểm tra Docker đang chạy: `docker ps`
+2. Kiểm tra port 5433 không bị chiếm
+3. Kiểm tra `.env` đúng cấu hình
+
+### Lỗi migration
+
+```bash
+# Reset database
+docker-compose down -v
+docker-compose up -d
+npm run migration:run
+```
+
+---
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+MIT

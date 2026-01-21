@@ -1,10 +1,13 @@
 import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+
 @Entity('districts')
 export class District {
     @PrimaryGeneratedColumn()
     id: number;
-    @Column({ type: 'varchar', length: 100 })
+
+    @Column({ type: 'text', nullable: true })
     name: string;
+
     @Column({ type: 'geometry', spatialFeatureType: 'Polygon', srid: 4326, nullable: true })
-    geom: string;
+    geometry: string;  // Match existing column name from backup
 }
