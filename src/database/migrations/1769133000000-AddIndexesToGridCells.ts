@@ -1,6 +1,6 @@
 import { MigrationInterface, QueryRunner } from "typeorm";
 
-export class AddIndexesToGridCells1769009531195 implements MigrationInterface {
+export class AddIndexesToGridCells1769133000000 implements MigrationInterface {
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         // Add index on status column for filtering queries
@@ -25,4 +25,3 @@ export class AddIndexesToGridCells1769009531195 implements MigrationInterface {
     }
 
 }
-

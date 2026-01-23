@@ -16,11 +16,5 @@ export class District {
         srid: 4326,
         select: false
     })
-    geom: Geometry;
-
-    @CreateDateColumn()
-    created_at: Date;
-
-    @UpdateDateColumn()
-    updated_at: Date;
+    geometry: Geometry;
 }

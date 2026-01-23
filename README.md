@@ -61,39 +61,50 @@ docker-compose up -d
 Lệnh này sẽ:
 - Tạo PostgreSQL 17 với PostGIS
 - Tự động enable PostGIS extension
-- Lưu data vào Docker volume
+- Lưu data vào Docker volume `cityload_cityload_data`
 
-### 5. Restore dữ liệu (nếu có file backup)
+### 5. Restore Database từ Backup
 
 ```bash
 # Copy file backup vào container
 docker cp cityload_gis.backup cityload-db:/tmp/
 
-# Restore
+# Restore backup
 docker exec -it cityload-db pg_restore -U postgres -d cityload --no-owner --no-acl /tmp/cityload_gis.backup
 ```
 
-### 6. Chạy migrations
+> **💡 Lưu ý**: Entities trong code đã được config sẵn để khớp với schema của backup. Bạn không cần ALTER table hay sửa gì thêm.
 
-> **⚠️ QUAN TRỌNG**: Bắt buộc phải chạy migrations mỗi khi pull code mới từ Git!
+**Warning sẽ thấy (bình thường):**
+```
+pg_restore: warning: errors ignored on restore: 1
+pg_restore: error: could not execute query: ERROR: schema "public" already exists
+```
+→ Ignore warning này, không ảnh hưởng gì.
+
+### 6. Chạy Migrations
+
+Sau khi restore, chạy migrations để thêm các bảng mới:
 
 ```bash
 npm run migration:run
 ```
 
-**Tại sao phải chạy migrations?**
-- Migrations đảm bảo database schema đồng bộ với team
-- Tự động tạo indexes, enums, và constraints cần thiết
-- Không chạy migrations có thể gây lỗi hoặc performance kém
+### 7. Kiểm tra Database
 
-**Kiểm tra migrations đã chạy chưa:**
-```sql
--- Connect vào PostgreSQL
-docker exec -it cityload-db psql -U postgres -d cityload
+```bash
+# Xem danh sách tables
+docker exec -it cityload-db psql -U postgres -d cityload -c "\dt"
 
--- Xem danh sách migrations đã chạy
-SELECT * FROM migrations ORDER BY timestamp DESC;
+# Kiểm tra số lượng data
+docker exec -it cityload-db psql -U postgres -d cityload -c "SELECT COUNT(*) FROM districts;"
+docker exec -it cityload-db psql -U postgres -d cityload -c "SELECT COUNT(*) FROM grid_cells;"
 ```
+
+Bạn sẽ thấy:
+- `districts`: 24 quận/huyện
+- `grid_cells`: ~290,000 cells
+- `feedbacks`, `ai_buildings`, `ai_land_usage`: Các bảng mới từ migration
 
 ### 7. Khởi động server
 
@@ -194,27 +205,57 @@ Hệ thống đã có các indexes sau để tối ưu performance:
 
 ## Troubleshooting
 
-### Lỗi kết nối database
+### ❌ Lỗi kết nối database
 
 1. Kiểm tra Docker đang chạy: `docker ps`
 2. Kiểm tra port 5433 không bị chiếm
 3. Kiểm tra `.env` đúng cấu hình
 
-### Lỗi migration
+### ❌ Lỗi restore backup: "relation already exists"
 
+**Nguyên nhân**: Bạn đã chạy migration TRƯỚC KHI restore backup.
+
+**Cách fix**:
 ```bash
-# Reset database
+# 1. Xóa database và volume
 docker-compose down -v
+
+# 2. Start lại database
 docker-compose up -d
+
+# 3. Restore backup TRƯỚC
+docker cp cityload_gis.backup cityload-db:/tmp/
+docker exec -it cityload-db pg_restore -U postgres -d cityload --no-owner --no-acl /tmp/cityload_gis.backup
+
+# 4. SAU ĐÓ mới chạy migration
 npm run migration:run
 ```
 
-### Performance chậm khi query
+### ❌ Lỗi entity không khớp với database
+
+**Error message**: `column "geometry" does not exist` hoặc tương tự
+
+**Nguyên nhân**: Entity trong code không khớp với schema trong database
+
+**Cách fix**:
+1. Pull code mới nhất từ Git
+2. Chạy migrations: `npm run migration:run`
+3. Nếu vẫn lỗi, liên hệ team lead
+
+### ❌ Performance chậm khi query
 
 Đảm bảo đã chạy migration để tạo indexes:
 ```bash
 npm run migration:run
 ```
+
+### ❌ Warning "version is obsolete" khi chạy docker-compose
+
+```
+level=warning msg="docker-compose.yml: the attribute `version` is obsolete"
+```
+
+→ **Hoàn toàn bình thường!** Docker Compose 2.x không cần `version` field nữa. Ignore warning này.
 
 ---
 
