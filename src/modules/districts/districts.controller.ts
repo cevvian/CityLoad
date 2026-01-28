@@ -14,6 +14,24 @@ export class DistrictsController {
         return this.districtsService.findAll();
     }
 
+    @Get('overlay')
+    @ApiOperation({
+        summary: 'Get districts as GeoJSON overlay for map',
+        description: 'Returns all districts with geometry and statistics as GeoJSON FeatureCollection',
+    })
+    @ApiResponse({ status: 200, description: 'GeoJSON FeatureCollection of districts' })
+    async getDistrictsOverlay() {
+        return this.districtsService.getDistrictsOverlay();
+    }
+
+    @Get(':id')
+    @ApiOperation({ summary: 'Get single district detail with full statistics' })
+    @ApiResponse({ status: 200, description: 'District detail with stats' })
+    @ApiResponse({ status: 404, description: 'District not found' })
+    async getDistrictDetail(@Param('id', ParseIntPipe) id: number) {
+        return this.districtsService.getDistrictDetail(id);
+    }
+
     @Get(':id/grid-cells')
     @ApiOperation({ summary: 'Get all grid cells of a district' })
     @ApiResponse({ status: 200, description: 'Grid cells of the district' })

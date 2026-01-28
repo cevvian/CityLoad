@@ -8,7 +8,7 @@ import { GridCell } from '../../database/entities/grid-cell.entity';
 import { AiBuilding } from '../../database/entities/ai-building.entity';
 import { AiLandUsage } from '../../database/entities/ai-land-usage.entity';
 import { GridCellStatus } from '../../database/entities/enums/grid-cell-status.enum';
-import { GetGridCellsDto, DetectRequestDto } from './dto';
+import { GetGridCellsDto, DetectRequestDto, LAND_TYPE_COLORS } from './dto';
 
 @Injectable()
 export class MapsService {
@@ -23,6 +23,143 @@ export class MapsService {
         private configService: ConfigService,
     ) { }
 
+    /**
+     * Get overlay data by bounding box - returns GeoJSON FeatureCollections
+     * Optimized for Mapbox GL JS overlay rendering
+     */
+    async getOverlayByBounds(query: GetGridCellsDto) {
+        const { minLat, minLng, maxLat, maxLng } = query;
+
+        // Query grid cells with geometry as GeoJSON
+        const gridCells = await this.gridCellRepo
+            .createQueryBuilder('gc')
+            .select([
+                'gc.id',
+                'gc.grid_code',
+                'gc.district_name',
+                'gc.status',
+                'gc.density_ratio',
+                'gc.total_area_m2',
+                'gc.building_area_m2',
+                'ST_AsGeoJSON(gc.geom)::json AS geom',
+            ])
+            .where(
+                `ST_Intersects(gc.geom, ST_MakeEnvelope(:minLng, :minLat, :maxLng, :maxLat, 4326))`,
+                { minLng, minLat, maxLng, maxLat },
+            )
+            .getRawMany();
+
+        const gridCellIds = gridCells.map((gc) => gc.gc_id);
+
+        // Query buildings for these grid cells
+        const buildings = gridCellIds.length > 0
+            ? await this.aiBuildingRepo
+                .createQueryBuilder('b')
+                .select([
+                    'b.id',
+                    'b.grid_cell_id',
+                    'b.confidence_score',
+                    'ST_AsGeoJSON(b.geom)::json AS geom',
+                ])
+                .where('b.grid_cell_id IN (:...ids)', { ids: gridCellIds })
+                .getRawMany()
+            : [];
+
+        // Query land usages for these grid cells
+        const landUsages = gridCellIds.length > 0
+            ? await this.aiLandUsageRepo
+                .createQueryBuilder('lu')
+                .select([
+                    'lu.id',
+                    'lu.grid_cell_id',
+                    'lu.land_type',
+                    'lu.area_m2',
+                    'ST_AsGeoJSON(lu.geom)::json AS geom',
+                ])
+                .where('lu.grid_cell_id IN (:...ids)', { ids: gridCellIds })
+                .getRawMany()
+            : [];
+
+        // Build GeoJSON FeatureCollections
+        const buildingsCount = new Map<number, number>();
+        buildings.forEach((b) => {
+            buildingsCount.set(b.b_grid_cell_id, (buildingsCount.get(b.b_grid_cell_id) || 0) + 1);
+        });
+
+        // Statistics
+        const processedCells = gridCells.filter((gc) => gc.gc_status === GridCellStatus.PROCESSED).length;
+        const avgDensity = gridCells.length > 0
+            ? gridCells.reduce((sum, gc) => sum + (gc.gc_density_ratio || 0), 0) / gridCells.length
+            : 0;
+
+        return {
+            success: true,
+            bounds: { minLat, minLng, maxLat, maxLng },
+
+            // Layer 1: Grid cells boundaries
+            grid_cells: {
+                type: 'FeatureCollection',
+                features: gridCells.map((gc) => ({
+                    type: 'Feature',
+                    properties: {
+                        id: gc.gc_id,
+                        grid_code: gc.gc_grid_code,
+                        district_name: gc.gc_district_name,
+                        status: gc.gc_status,
+                        density_ratio: gc.gc_density_ratio,
+                        buildings_count: buildingsCount.get(gc.gc_id) || 0,
+                        layer: 'grid_cells',
+                    },
+                    geometry: gc.geom,
+                })),
+            },
+
+            // Layer 2: Building polygons (detected by YOLOv8)
+            buildings: {
+                type: 'FeatureCollection',
+                features: buildings.map((b) => ({
+                    type: 'Feature',
+                    properties: {
+                        id: b.b_id,
+                        grid_cell_id: b.b_grid_cell_id,
+                        confidence_score: b.b_confidence_score,
+                        layer: 'buildings',
+                    },
+                    geometry: b.geom,
+                })),
+            },
+
+            // Layer 3: Land usage polygons (segmented by U-Net++)
+            land_usages: {
+                type: 'FeatureCollection',
+                features: landUsages.map((lu) => ({
+                    type: 'Feature',
+                    properties: {
+                        id: lu.lu_id,
+                        grid_cell_id: lu.lu_grid_cell_id,
+                        land_type: lu.lu_land_type,
+                        area_m2: lu.lu_area_m2,
+                        layer: 'land_usage',
+                        color: LAND_TYPE_COLORS[lu.lu_land_type] || LAND_TYPE_COLORS.unknown,
+                    },
+                    geometry: lu.geom,
+                })),
+            },
+
+            // Statistics for dashboard
+            stats: {
+                total_grid_cells: gridCells.length,
+                processed_cells: processedCells,
+                total_buildings: buildings.length,
+                avg_density_ratio: Math.round(avgDensity * 100) / 100,
+            },
+        };
+    }
+
+    /**
+     * Legacy method - returns raw data
+     * @deprecated Use getOverlayByBounds instead
+     */
     async getGridCellsByBounds(query: GetGridCellsDto) {
         const { minLat, minLng, maxLat, maxLng } = query;
 
@@ -41,6 +178,7 @@ export class MapsService {
             data: gridCells,
         };
     }
+
 
     async detectObjects(dto: DetectRequestDto) {
         const { grid_cell_id, bounds, image_url } = dto;

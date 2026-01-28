@@ -7,6 +7,6 @@ export const databaseConfig = (): TypeOrmModuleOptions => ({
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_DATABASE || 'cityload',
     entities: [__dirname + '/../database/entities/*.entity{.ts,.js}'],
-    synchronize: false,
+    synchronize: true,
     migrations: [__dirname + '/../database/migrations/*{.ts,.js}'],
 });
