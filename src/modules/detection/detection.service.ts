@@ -21,20 +21,29 @@ export class DetectionService {
 
     async fetchTasks(query: FetchTasksQueryDto) {
         const limit = query.limit || 5;
+        const districtName = query.district_name;
 
         const tasks = await this.dataSource.transaction(async (manager) => {
-            const pendingCells = await manager
+            const queryBuilder = manager
                 .createQueryBuilder(GridCell, 'gc')
                 .select([
                     'gc.id AS id',
                     'gc.grid_code AS grid_code',
+                    'gc.district_name AS district_name',
                     'ST_AsGeoJSON(gc.geom)::json AS geom',
                     'ST_XMin(gc.geom) AS min_lon',
                     'ST_YMin(gc.geom) AS min_lat',
                     'ST_XMax(gc.geom) AS max_lon',
                     'ST_YMax(gc.geom) AS max_lat',
                 ])
-                .where('gc.status = :status', { status: GridCellStatus.PENDING })
+                .where('gc.status = :status', { status: GridCellStatus.PENDING });
+
+            // Filter by district if specified
+            if (districtName) {
+                queryBuilder.andWhere('gc.district_name = :districtName', { districtName });
+            }
+
+            const pendingCells = await queryBuilder
                 .orderBy('gc.id', 'ASC')
                 .limit(limit)
                 .setLock('pessimistic_write_or_fail')
@@ -59,6 +68,7 @@ export class DetectionService {
             return pendingCells.map((cell) => ({
                 id: cell.id,
                 grid_code: cell.grid_code,
+                district_name: cell.district_name,
                 bbox: [
                     parseFloat(cell.min_lon),
                     parseFloat(cell.min_lat),
@@ -72,6 +82,7 @@ export class DetectionService {
         return {
             tasks,
             count: tasks.length,
+            district_filter: districtName || null,
             fetched_at: new Date().toISOString(),
         };
     }

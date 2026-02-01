@@ -23,14 +23,11 @@ export class MapsService {
         private configService: ConfigService,
     ) { }
 
-    /**
-     * Get overlay data by bounding box - returns GeoJSON FeatureCollections
-     * Optimized for Mapbox GL JS overlay rendering
-     */
     async getOverlayByBounds(query: GetGridCellsDto) {
         const { minLat, minLng, maxLat, maxLng } = query;
+        const GRID_CELL_LIMIT = 500;
+        const FEATURES_LIMIT = 5000;
 
-        // Query grid cells with geometry as GeoJSON
         const gridCells = await this.gridCellRepo
             .createQueryBuilder('gc')
             .select([
@@ -47,11 +44,12 @@ export class MapsService {
                 `ST_Intersects(gc.geom, ST_MakeEnvelope(:minLng, :minLat, :maxLng, :maxLat, 4326))`,
                 { minLng, minLat, maxLng, maxLat },
             )
+            .orderBy('gc.id', 'ASC')
+            .limit(GRID_CELL_LIMIT)
             .getRawMany();
 
         const gridCellIds = gridCells.map((gc) => gc.gc_id);
 
-        // Query buildings for these grid cells
         const buildings = gridCellIds.length > 0
             ? await this.aiBuildingRepo
                 .createQueryBuilder('b')
@@ -62,10 +60,10 @@ export class MapsService {
                     'ST_AsGeoJSON(b.geom)::json AS geom',
                 ])
                 .where('b.grid_cell_id IN (:...ids)', { ids: gridCellIds })
+                .limit(FEATURES_LIMIT)
                 .getRawMany()
             : [];
-
-        // Query land usages for these grid cells
+  
         const landUsages = gridCellIds.length > 0
             ? await this.aiLandUsageRepo
                 .createQueryBuilder('lu')
@@ -77,26 +75,29 @@ export class MapsService {
                     'ST_AsGeoJSON(lu.geom)::json AS geom',
                 ])
                 .where('lu.grid_cell_id IN (:...ids)', { ids: gridCellIds })
+                .limit(FEATURES_LIMIT)
                 .getRawMany()
             : [];
 
-        // Build GeoJSON FeatureCollections
         const buildingsCount = new Map<number, number>();
-        buildings.forEach((b) => {
-            buildingsCount.set(b.b_grid_cell_id, (buildingsCount.get(b.b_grid_cell_id) || 0) + 1);
-        });
+        for (const b of buildings) {
+            const cellId = b.b_grid_cell_id;
+            buildingsCount.set(cellId, (buildingsCount.get(cellId) || 0) + 1);
+        }
 
-        // Statistics
-        const processedCells = gridCells.filter((gc) => gc.gc_status === GridCellStatus.PROCESSED).length;
-        const avgDensity = gridCells.length > 0
-            ? gridCells.reduce((sum, gc) => sum + (gc.gc_density_ratio || 0), 0) / gridCells.length
-            : 0;
+        let processedCells = 0;
+        let totalDensity = 0;
+        for (const gc of gridCells) {
+            if (gc.gc_status === GridCellStatus.PROCESSED) processedCells++;
+            totalDensity += (gc.gc_density_ratio || 0);
+        }
+        const avgDensity = gridCells.length > 0 ? totalDensity / gridCells.length : 0;
 
         return {
             success: true,
             bounds: { minLat, minLng, maxLat, maxLng },
+            hasMore: gridCells.length >= GRID_CELL_LIMIT,
 
-            // Layer 1: Grid cells boundaries
             grid_cells: {
                 type: 'FeatureCollection',
                 features: gridCells.map((gc) => ({
@@ -114,7 +115,6 @@ export class MapsService {
                 })),
             },
 
-            // Layer 2: Building polygons (detected by YOLOv8)
             buildings: {
                 type: 'FeatureCollection',
                 features: buildings.map((b) => ({
@@ -129,7 +129,6 @@ export class MapsService {
                 })),
             },
 
-            // Layer 3: Land usage polygons (segmented by U-Net++)
             land_usages: {
                 type: 'FeatureCollection',
                 features: landUsages.map((lu) => ({
@@ -146,7 +145,6 @@ export class MapsService {
                 })),
             },
 
-            // Statistics for dashboard
             stats: {
                 total_grid_cells: gridCells.length,
                 processed_cells: processedCells,
@@ -156,10 +154,6 @@ export class MapsService {
         };
     }
 
-    /**
-     * Legacy method - returns raw data
-     * @deprecated Use getOverlayByBounds instead
-     */
     async getGridCellsByBounds(query: GetGridCellsDto) {
         const { minLat, minLng, maxLat, maxLng } = query;
 

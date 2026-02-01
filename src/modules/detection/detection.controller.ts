@@ -11,9 +11,10 @@ export class DetectionController {
     @Get('fetch-tasks')
     @ApiOperation({
         summary: 'Fetch pending tasks for AI Worker',
-        description: 'Returns PENDING grid cells and atomically updates their status to PROCESSING (Fetch & Lock pattern)',
+        description: 'Returns PENDING grid cells and atomically updates their status to PROCESSING (Fetch & Lock pattern). Can filter by district.',
     })
     @ApiQuery({ name: 'limit', required: false, type: Number, example: 5, description: 'Number of tasks to fetch (max 20)' })
+    @ApiQuery({ name: 'district_name', required: false, type: String, example: 'Quận 1', description: 'Filter by district name' })
     @ApiResponse({ status: 200, description: 'List of tasks', type: FetchTasksResponseDto })
     async fetchTasks(@Query() query: FetchTasksQueryDto) {
         return this.detectionService.fetchTasks(query);
